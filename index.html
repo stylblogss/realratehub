@@ -4,16 +4,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>RealRateHub - Live Market Prices</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
-    table { width: 100%; border-collapse: collapse; background: white; }
+    h1 { text-align: center; }
+    input, select { padding: 8px; margin: 10px 5px; width: 200px; }
+    table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
     th, td { padding: 10px; border: 1px solid #ccc; text-align: left; }
     th { background-color: #333; color: white; }
-    h1 { text-align: center; }
   </style>
 </head>
 <body>
+
   <h1>🌍 RealRateHub - Live Market Prices</h1>
+
+  <!-- 🔎 Live Search + Filter -->
+  <input type="text" id="searchInput" placeholder="Search item...">
+  <select id="cityFilter">
+    <option value="">All Cities</option>
+  </select>
+
+  <!-- 📊 Chart -->
+  <canvas id="priceChart" height="100"></canvas>
+
+  <!-- 🧾 Table -->
   <table id="priceTable">
     <thead>
       <tr>
@@ -27,27 +41,101 @@
   </table>
 
   <script>
-    // Replace with your own Google Script API link
-    const apiURL = "https://script.google.com/macros/s/AKfycbwWswTMiB4j5sqx4R1M1u8ZpJAWEMhvzYkOoK4PWK8/dev";
+    const apiURL = "https://script.googleusercontent.com/macros/your-api-link-here/exec"; // 👈 Replace with your actual API
+
+    let fullData = [];
+
+    function renderTable(data) {
+      const tableBody = document.querySelector("#priceTable tbody");
+      tableBody.innerHTML = "";
+      data.forEach(item => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${item.item}</td>
+          <td>${item.price}</td>
+          <td>${item.city}</td>
+          <td>${item.date}</td>
+        `;
+        tableBody.appendChild(row);
+      });
+    }
+
+    function updateFilters() {
+      const searchText = document.getElementById("searchInput").value.toLowerCase();
+      const selectedCity = document.getElementById("cityFilter").value;
+      const filteredData = fullData.filter(item => {
+        return (
+          item.item.toLowerCase().includes(searchText) &&
+          (selectedCity === "" || item.city === selectedCity)
+        );
+      });
+      renderTable(filteredData);
+      drawChart(filteredData);
+    }
+
+    function drawChart(data) {
+      const itemGroups = {};
+
+      data.forEach(entry => {
+        if (!itemGroups[entry.item]) {
+          itemGroups[entry.item] = [];
+        }
+        itemGroups[entry.item].push(Number(entry.price.replace(/[^\d.]/g, "")));
+      });
+
+      const labels = Object.keys(itemGroups);
+      const values = labels.map(label => {
+        const prices = itemGroups[label];
+        return prices.reduce((a, b) => a + b, 0) / prices.length;
+      });
+
+      const ctx = document.getElementById("priceChart").getContext("2d");
+      if (window.chartInstance) window.chartInstance.destroy();
+      window.chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Avg Price',
+            data: values,
+            backgroundColor: '#1e88e5'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: {
+              label: ctx => `₹${ctx.raw.toFixed(2)}`
+            }}
+          }
+        }
+      });
+    }
 
     fetch(apiURL)
       .then(response => response.json())
       .then(data => {
-        const tableBody = document.querySelector("#priceTable tbody");
-        data.forEach(item => {
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td>${item.item}</td>
-            <td>${item.price}</td>
-            <td>${item.city}</td>
-            <td>${item.date}</td>
-          `;
-          tableBody.appendChild(row);
+        fullData = data;
+
+        // Populate city filter dropdown
+        const cityDropdown = document.getElementById("cityFilter");
+        const cities = [...new Set(data.map(item => item.city))];
+        cities.forEach(city => {
+          const option = document.createElement("option");
+          option.value = city;
+          option.textContent = city;
+          cityDropdown.appendChild(option);
         });
-      })
-      .catch(error => {
-        console.error("Error fetching data:", error);
+
+        renderTable(data);
+        drawChart(data);
       });
+
+    // Event Listeners
+    document.getElementById("searchInput").addEventListener("input", updateFilters);
+    document.getElementById("cityFilter").addEventListener("change", updateFilters);
   </script>
+
 </body>
 </html>
