@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Upload Tool</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 500px;
+      margin: 40px auto;
+      padding: 20px;
+      border-radius: 8px;
+      background: #f4f4f4;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      font-size: 16px;
+    }
+    button {
+      background-color: #2b7cff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #1e5fcc;
+    }
+  </style>
+</head>
+<body>
+  <h2>🛠 Add Market Price Data</h2>
+  <form id="uploadForm">
+    <input type="text" name="item" placeholder="Item (e.g., Tomato)" required />
+    <input type="number" name="price" placeholder="Price (₹)" required />
+    <input type="text" name="city" placeholder="City" required />
+    <input type="text" name="state" placeholder="State" required />
+    <input type="date" name="date" required />
+    <button type="submit">➕ Add Entry</button>
+  </form>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbzmmyO85gK2tX8e1hGy1ajUGsCh7c4kNcM4C0Ge9fKh9qB_qDve50G1sV-bkPmDiLXuGg/exec";
+
+    const form = document.getElementById("uploadForm");
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const formData = new FormData(form);
+      const params = new URLSearchParams(formData).toString();
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: params,
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+          }
+        });
+
+        const text = await res.text();
+        alert(text === "Success" ? "✅ Data Added Successfully!" : "❌ Error: " + text);
+        if (text === "Success") form.reset();
+      } catch (err) {
+        alert("🚫 Submission failed. Check your internet or API URL.");
+      }
+    };
+  </script>
+</body>
+</html>
