@@ -2,172 +2,71 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live Market Prices</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Upload Tool</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      transition: 0.3s;
-    }
-    :root {
-      --bg: #ffffff;
-      --text: #000000;
-    }
-    .dark {
-      --bg: #121212;
-      --text: #ffffff;
-    }
-    .container {
+      max-width: 500px;
+      margin: 40px auto;
       padding: 20px;
-      max-width: 1000px;
-      margin: auto;
+      border-radius: 8px;
+      background: #f4f4f4;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
-    table {
+    input, button {
       width: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
-    }
-    th, td {
       padding: 10px;
-      border: 1px solid #ccc;
-      text-align: left;
+      margin: 10px 0;
+      font-size: 16px;
     }
-    #chartContainer {
-      width: 100%;
-      margin-top: 40px;
+    button {
+      background-color: #2b7cff;
+      color: white;
+      border: none;
+      cursor: pointer;
     }
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-    input, select, button {
-      padding: 8px;
-      font-size: 14px;
+    button:hover {
+      background-color: #1e5fcc;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>📊 Live Market Price Dashboard</h1>
-    <div class="controls">
-      <input type="text" id="search" placeholder="Search item or city..." />
-      <select id="stateFilter"><option value="">All States</option></select>
-      <button onclick="toggleDark()">🌙 Toggle Dark Mode</button>
-    </div>
-    <table id="dataTable">
-      <thead>
-        <tr>
-          <th>Item</th><th>Price</th><th>City</th><th>State</th><th>Date</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <div id="pagination"></div>
-    <div id="chartContainer">
-      <canvas id="priceChart"></canvas>
-    </div>
-  </div>
+  <h2>🛠 Add Market Price Data</h2>
+  <form id="uploadForm">
+    <input type="text" name="item" placeholder="Item (e.g., Tomato)" required />
+    <input type="number" name="price" placeholder="Price (₹)" required />
+    <input type="text" name="city" placeholder="City" required />
+    <input type="text" name="state" placeholder="State" required />
+    <input type="date" name="date" required />
+    <button type="submit">➕ Add Entry</button>
+  </form>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbzWSqFlMhGd4XsRvYX7e43_HYcjspZ7w-2AvEUc855utrzzPe5uroWiDkGF3GOQxEKQ/exec";
-    let allData = [], filteredData = [], currentPage = 1, rowsPerPage = 10;
+    const API_URL = "https://script.google.com/macros/s/AKfycbzmmyO85gK2tX8e1hGy1ajUGsCh7c4kNcM4C0Ge9fKh9qB_qDve50G1sV-bkPmDiLXuGg/exec";
 
-    async function fetchData() {
-      const res = await fetch(API_URL);
-      const data = await res.json();
-      allData = data;
-      populateStateFilter();
-      applyFilters();
-    }
+    const form = document.getElementById("uploadForm");
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const formData = new FormData(form);
+      const params = new URLSearchParams(formData).toString();
 
-    function populateStateFilter() {
-      const stateSet = new Set(allData.map(d => d.state));
-      const stateSelect = document.getElementById("stateFilter");
-      stateSet.forEach(state => {
-        const opt = document.createElement("option");
-        opt.value = state;
-        opt.textContent = state;
-        stateSelect.appendChild(opt);
-      });
-    }
-
-    function applyFilters() {
-      const search = document.getElementById("search").value.toLowerCase();
-      const state = document.getElementById("stateFilter").value;
-      filteredData = allData.filter(row => {
-        return (!state || row.state === state) &&
-          (row.item.toLowerCase().includes(search) || row.city.toLowerCase().includes(search));
-      });
-      currentPage = 1;
-      renderTable();
-      renderPagination();
-    }
-
-    function renderTable() {
-      const tbody = document.querySelector("#dataTable tbody");
-      tbody.innerHTML = "";
-      const start = (currentPage - 1) * rowsPerPage;
-      const pageData = filteredData.slice(start, start + rowsPerPage);
-      pageData.forEach(row => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${row.item}</td><td>${row.price}</td><td>${row.city}</td><td>${row.state}</td><td>${row.date}</td>`;
-        tr.onclick = () => showChart(row.item, row.city);
-        tbody.appendChild(tr);
-      });
-    }
-
-    function renderPagination() {
-      const pages = Math.ceil(filteredData.length / rowsPerPage);
-      const container = document.getElementById("pagination");
-      container.innerHTML = "";
-      for (let i = 1; i <= pages; i++) {
-        const btn = document.createElement("button");
-        btn.textContent = i;
-        btn.onclick = () => { currentPage = i; renderTable(); };
-        container.appendChild(btn);
-      }
-    }
-
-    function showChart(item, city) {
-      const chartData = allData.filter(d => d.item === item && d.city === city);
-      chartData.sort((a, b) => new Date(a.date) - new Date(b.date));
-      const labels = chartData.map(d => d.date);
-      const prices = chartData.map(d => parseFloat(d.price));
-
-      const ctx = document.getElementById("priceChart").getContext("2d");
-      if (window.priceChart) window.priceChart.destroy();
-      window.priceChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: `${item} Price Trend (${city})`,
-            data: prices,
-            borderColor: 'blue',
-            fill: false
-          }]
-        },
-        options: {
-          responsive: true,
-          scales: {
-            y: { beginAtZero: false }
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: params,
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
           }
-        }
-      });
-    }
+        });
 
-    function toggleDark() {
-      document.body.classList.toggle("dark");
-    }
-
-    document.getElementById("search").oninput = applyFilters;
-    document.getElementById("stateFilter").onchange = applyFilters;
-
-    fetchData();
+        const text = await res.text();
+        alert(text === "Success" ? "✅ Data Added Successfully!" : "❌ Error: " + text);
+        if (text === "Success") form.reset();
+      } catch (err) {
+        alert("🚫 Submission failed. Check your internet or API URL.");
+      }
+    };
   </script>
 </body>
 </html>
