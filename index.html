@@ -2,140 +2,172 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RealRateHub - Live Market Prices</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Market Prices</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
-    h1 { text-align: center; }
-    input, select { padding: 8px; margin: 10px 5px; width: 200px; }
-    table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
-    th, td { padding: 10px; border: 1px solid #ccc; text-align: left; }
-    th { background-color: #333; color: white; }
+    body {
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      transition: 0.3s;
+    }
+    :root {
+      --bg: #ffffff;
+      --text: #000000;
+    }
+    .dark {
+      --bg: #121212;
+      --text: #ffffff;
+    }
+    .container {
+      padding: 20px;
+      max-width: 1000px;
+      margin: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #ccc;
+      text-align: left;
+    }
+    #chartContainer {
+      width: 100%;
+      margin-top: 40px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    input, select, button {
+      padding: 8px;
+      font-size: 14px;
+    }
   </style>
 </head>
 <body>
-
-  <h1>🌍 RealRateHub - Live Market Prices</h1>
-
-  <!-- 🔎 Live Search + Filter -->
-  <input type="text" id="searchInput" placeholder="Search item...">
-  <select id="cityFilter">
-    <option value="">All Cities</option>
-  </select>
-
-  <!-- 📊 Chart -->
-  <canvas id="priceChart" height="100"></canvas>
-
-  <!-- 🧾 Table -->
-  <table id="priceTable">
-    <thead>
-      <tr>
-        <th>Item</th>
-        <th>Price</th>
-        <th>City</th>
-        <th>Date</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+  <div class="container">
+    <h1>📊 Live Market Price Dashboard</h1>
+    <div class="controls">
+      <input type="text" id="search" placeholder="Search item or city..." />
+      <select id="stateFilter"><option value="">All States</option></select>
+      <button onclick="toggleDark()">🌙 Toggle Dark Mode</button>
+    </div>
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th>Item</th><th>Price</th><th>City</th><th>State</th><th>Date</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div id="pagination"></div>
+    <div id="chartContainer">
+      <canvas id="priceChart"></canvas>
+    </div>
+  </div>
 
   <script>
-    const apiURL = "https://script.google.com/macros/s/AKfycbwWswTMiB4j5sqx4R1M1u8ZpJAWEMhvzYkOoK4PWK8/dev"; // 👈 Replace with your actual API
+    const API_URL = "https://script.google.com/macros/s/AKfycbzWSqFlMhGd4XsRvYX7e43_HYcjspZ7w-2AvEUc855utrzzPe5uroWiDkGF3GOQxEKQ/exec";
+    let allData = [], filteredData = [], currentPage = 1, rowsPerPage = 10;
 
-    let fullData = [];
+    async function fetchData() {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      allData = data;
+      populateStateFilter();
+      applyFilters();
+    }
 
-    function renderTable(data) {
-      const tableBody = document.querySelector("#priceTable tbody");
-      tableBody.innerHTML = "";
-      data.forEach(item => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${item.item}</td>
-          <td>${item.price}</td>
-          <td>${item.city}</td>
-          <td>${item.date}</td>
-        `;
-        tableBody.appendChild(row);
+    function populateStateFilter() {
+      const stateSet = new Set(allData.map(d => d.state));
+      const stateSelect = document.getElementById("stateFilter");
+      stateSet.forEach(state => {
+        const opt = document.createElement("option");
+        opt.value = state;
+        opt.textContent = state;
+        stateSelect.appendChild(opt);
       });
     }
 
-    function updateFilters() {
-      const searchText = document.getElementById("searchInput").value.toLowerCase();
-      const selectedCity = document.getElementById("cityFilter").value;
-      const filteredData = fullData.filter(item => {
-        return (
-          item.item.toLowerCase().includes(searchText) &&
-          (selectedCity === "" || item.city === selectedCity)
-        );
+    function applyFilters() {
+      const search = document.getElementById("search").value.toLowerCase();
+      const state = document.getElementById("stateFilter").value;
+      filteredData = allData.filter(row => {
+        return (!state || row.state === state) &&
+          (row.item.toLowerCase().includes(search) || row.city.toLowerCase().includes(search));
       });
-      renderTable(filteredData);
-      drawChart(filteredData);
+      currentPage = 1;
+      renderTable();
+      renderPagination();
     }
 
-    function drawChart(data) {
-      const itemGroups = {};
-
-      data.forEach(entry => {
-        if (!itemGroups[entry.item]) {
-          itemGroups[entry.item] = [];
-        }
-        itemGroups[entry.item].push(Number(entry.price.replace(/[^\d.]/g, "")));
+    function renderTable() {
+      const tbody = document.querySelector("#dataTable tbody");
+      tbody.innerHTML = "";
+      const start = (currentPage - 1) * rowsPerPage;
+      const pageData = filteredData.slice(start, start + rowsPerPage);
+      pageData.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${row.item}</td><td>${row.price}</td><td>${row.city}</td><td>${row.state}</td><td>${row.date}</td>`;
+        tr.onclick = () => showChart(row.item, row.city);
+        tbody.appendChild(tr);
       });
+    }
 
-      const labels = Object.keys(itemGroups);
-      const values = labels.map(label => {
-        const prices = itemGroups[label];
-        return prices.reduce((a, b) => a + b, 0) / prices.length;
-      });
+    function renderPagination() {
+      const pages = Math.ceil(filteredData.length / rowsPerPage);
+      const container = document.getElementById("pagination");
+      container.innerHTML = "";
+      for (let i = 1; i <= pages; i++) {
+        const btn = document.createElement("button");
+        btn.textContent = i;
+        btn.onclick = () => { currentPage = i; renderTable(); };
+        container.appendChild(btn);
+      }
+    }
+
+    function showChart(item, city) {
+      const chartData = allData.filter(d => d.item === item && d.city === city);
+      chartData.sort((a, b) => new Date(a.date) - new Date(b.date));
+      const labels = chartData.map(d => d.date);
+      const prices = chartData.map(d => parseFloat(d.price));
 
       const ctx = document.getElementById("priceChart").getContext("2d");
-      if (window.chartInstance) window.chartInstance.destroy();
-      window.chartInstance = new Chart(ctx, {
-        type: 'bar',
+      if (window.priceChart) window.priceChart.destroy();
+      window.priceChart = new Chart(ctx, {
+        type: 'line',
         data: {
           labels: labels,
           datasets: [{
-            label: 'Avg Price',
-            data: values,
-            backgroundColor: '#1e88e5'
+            label: `${item} Price Trend (${city})`,
+            data: prices,
+            borderColor: 'blue',
+            fill: false
           }]
         },
         options: {
           responsive: true,
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: {
-              label: ctx => `₹${ctx.raw.toFixed(2)}`
-            }}
+          scales: {
+            y: { beginAtZero: false }
           }
         }
       });
     }
 
-    fetch(apiURL)
-      .then(response => response.json())
-      .then(data => {
-        fullData = data;
+    function toggleDark() {
+      document.body.classList.toggle("dark");
+    }
 
-        // Populate city filter dropdown
-        const cityDropdown = document.getElementById("cityFilter");
-        const cities = [...new Set(data.map(item => item.city))];
-        cities.forEach(city => {
-          const option = document.createElement("option");
-          option.value = city;
-          option.textContent = city;
-          cityDropdown.appendChild(option);
-        });
+    document.getElementById("search").oninput = applyFilters;
+    document.getElementById("stateFilter").onchange = applyFilters;
 
-        renderTable(data);
-        drawChart(data);
-      });
-
-    // Event Listeners
-    document.getElementById("searchInput").addEventListener("input", updateFilters);
-    document.getElementById("cityFilter").addEventListener("change", updateFilters);
+    fetchData();
   </script>
-
 </body>
 </html>
